@@ -1,27 +1,49 @@
 const express = require("express");
 const { ExpressPeerServer } = require("peer");
+const { createServer } = require("http");
+const { Server } = require("socket.io");
 
 const app = express();
 
-// Enable CORS (allows your website to connect)
+// Enable CORS (allows connections from any origin)
 const cors = require("cors");
 app.use(cors());
 
-// Serve a simple welcome message at root
+// Create an HTTP server for WebSockets
+const server = createServer(app);
+
+// Set up Socket.io for WebSocket support
+const io = new Server(server, {
+    cors: {
+        origin: "*",  // Allows all origins
+        methods: ["GET", "POST"]
+    }
+});
+
+// WebSocket connection log
+io.on("connection", (socket) => {
+    console.log("✅ A user connected:", socket.id);
+    socket.on("disconnect", () => {
+        console.log("❌ A user disconnected:", socket.id);
+    });
+});
+
+// Serve a simple welcome message at the root
 app.get("/", (req, res) => {
-    res.send("✅ PeerJS Server is Running!");
+    res.send("✅ PeerJS Server is Running with WebSocket Support!");
 });
 
 // Attach PeerJS to Express at "/peerjs"
-const peerServer = ExpressPeerServer(app, {
+const peerServer = ExpressPeerServer(server, {
     path: "/",
-    allow_discovery: true
+    allow_discovery: true,
+    debug: true
 });
 
 app.use("/peerjs", peerServer);
 
-// Use Render-assigned port
+// Use Render's assigned port (fallback to 10000)
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`✅ PeerJS Server is running at https://peerjs-server-vbtq.onrender.com/peerjs`);
 });
