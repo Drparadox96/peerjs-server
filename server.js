@@ -40,14 +40,26 @@ io.on("connection", (socket) => {
             io.to(matchedUser.socketId).emit("match_found", peerId);
         } else {
             // No one waiting, add to queue
-            waitingUsers.push({ peerId, socketId: socket.id });
+            waitingUsers.push({ peerId, socketId: socket.id, timestamp: Date.now() });
             console.log(`🕒 ${peerId} added to waiting list`);
         }
     });
 
+    // 🔥 Auto-retry matchmaking every 10 seconds (so users don't get stuck)
+    setInterval(() => {
+        if (waitingUsers.length > 1) {
+            const user1 = waitingUsers.shift(); // Oldest user
+            const user2 = waitingUsers.shift(); // Next user
+            console.log(`🔄 Auto-matching ${user1.peerId} with ${user2.peerId}`);
+
+            io.to(user1.socketId).emit("match_found", user2.peerId);
+            io.to(user2.socketId).emit("match_found", user1.peerId);
+        }
+    }, 10000); // Retry every 10 seconds
+
     socket.on("disconnect", () => {
         console.log("❌ A user disconnected:", socket.id);
-        
+
         // Remove user from waiting list
         const index = waitingUsers.findIndex((user) => user.socketId === socket.id);
         if (index !== -1) {
