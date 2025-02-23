@@ -32,30 +32,30 @@ io.on("connection", (socket) => {
         console.log(`🟢 User ${peerId} is searching for a match...`);
 
         if (waitingUsers.length > 0) {
-            // Pair with the FIRST user who was waiting (FIFO queue)
-            const matchedUser = waitingUsers.shift(); // Oldest user gets matched first
+            // FIFO: Pair the user who has waited the longest
+            const matchedUser = waitingUsers.shift();
             console.log(`🔗 Pairing ${peerId} with ${matchedUser.peerId}`);
 
             io.to(socket.id).emit("match_found", matchedUser.peerId);
             io.to(matchedUser.socketId).emit("match_found", peerId);
         } else {
-            // No one waiting, add to queue
+            // Add to waiting queue with timestamp
             waitingUsers.push({ peerId, socketId: socket.id, timestamp: Date.now() });
             console.log(`🕒 ${peerId} added to waiting list`);
         }
     });
 
-    // 🔥 Auto-retry matchmaking every 10 seconds (so users don't get stuck)
-    setInterval(() => {
+    // 🔥 Auto-retry matchmaking every 10 seconds
+    const matchInterval = setInterval(() => {
         if (waitingUsers.length > 1) {
-            const user1 = waitingUsers.shift(); // Oldest user
-            const user2 = waitingUsers.shift(); // Next user
+            const user1 = waitingUsers.shift();
+            const user2 = waitingUsers.shift();
             console.log(`🔄 Auto-matching ${user1.peerId} with ${user2.peerId}`);
 
             io.to(user1.socketId).emit("match_found", user2.peerId);
             io.to(user2.socketId).emit("match_found", user1.peerId);
         }
-    }, 10000); // Retry every 10 seconds
+    }, 10000);
 
     socket.on("disconnect", () => {
         console.log("❌ A user disconnected:", socket.id);
@@ -65,6 +65,11 @@ io.on("connection", (socket) => {
         if (index !== -1) {
             console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
             waitingUsers.splice(index, 1);
+        }
+
+        // Stop auto-matching if no users left
+        if (waitingUsers.length === 0) {
+            clearInterval(matchInterval);
         }
     });
 });
