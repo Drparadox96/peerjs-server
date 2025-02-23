@@ -24,7 +24,20 @@ const peerServer = ExpressPeerServer(server, {
 app.use("/peerjs", peerServer);
 
 const waitingUsers = [];
-const connectedPeers = new Set(); // Stores connected user IDs
+const connectedPeers = new Set(); // Stores all connected peer IDs
+
+// ✅ PeerJS Connection Logging
+peerServer.on("connection", (client) => {
+    console.log(`🟢 New Peer connected: ${client.getId()}`);
+    connectedPeers.add(client.getId());
+    updatePeerCount(); // Update total peer count
+});
+
+peerServer.on("disconnect", (client) => {
+    console.log(`🔴 Peer disconnected: ${client.getId()}`);
+    connectedPeers.delete(client.getId());
+    updatePeerCount(); // Update total peer count
+});
 
 io.on("connection", (socket) => {
     console.log(`✅ A user connected: ${socket.id}`);
@@ -35,7 +48,7 @@ io.on("connection", (socket) => {
         console.log(`🟢 User ${peerId} is searching for a match...`);
 
         if (waitingUsers.length > 0) {
-            // FIFO: Match the oldest waiting user first
+            // FIFO: Match the longest waiting user first
             const matchedUser = waitingUsers.shift();
             console.log(`🔗 Pairing ${peerId} with ${matchedUser.peerId}`);
 
@@ -82,14 +95,14 @@ io.on("connection", (socket) => {
     });
 });
 
-// 🔹 Function to update and log connected peers count
+// ✅ Function to update and log connected peers count
 function updatePeerCount() {
     const peerCount = connectedPeers.size;
     io.emit("peer_count", peerCount);
     console.log(`👥 Total Connected Peers: ${peerCount}`);
 }
 
-// 🔹 Function to update and log queue count
+// ✅ Function to update and log queue count
 function updateQueueCount() {
     const queueCount = waitingUsers.length;
     io.emit("queue_count", queueCount);
