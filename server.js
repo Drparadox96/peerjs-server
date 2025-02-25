@@ -47,6 +47,9 @@ io.on("connection", (socket) => {
     socket.on("find_match", (peerId) => {
         console.log(`🟢 User ${peerId} is searching for a match...`);
 
+        // Remove user from queue first (if they were already waiting)
+        removeUserFromQueue(peerId);
+
         if (waitingUsers.length > 0) {
             // FIFO: Match the longest waiting user first
             const matchedUser = waitingUsers.shift();
@@ -59,6 +62,13 @@ io.on("connection", (socket) => {
             waitingUsers.push({ peerId, socketId: socket.id, timestamp: Date.now() });
             console.log(`🕒 ${peerId} added to waiting list`);
         }
+        updateQueueCount(); // Log updated queue count
+    });
+
+    // ✅ Handle "end_chat" event
+    socket.on("end_chat", (peerId) => {
+        console.log(`🚫 ${peerId} ended chat. Removing from waiting queue.`);
+        removeUserFromQueue(peerId);
         updateQueueCount(); // Log updated queue count
     });
 
@@ -81,11 +91,7 @@ io.on("connection", (socket) => {
         updatePeerCount(); // Logs and updates peer count
 
         // Remove user from waiting list
-        const index = waitingUsers.findIndex(user => user.socketId === socket.id);
-        if (index !== -1) {
-            console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
-            waitingUsers.splice(index, 1);
-        }
+        removeUserFromQueueBySocket(socket.id);
         updateQueueCount(); // Log updated queue count
 
         // Stop auto-matching if no users left
@@ -94,6 +100,24 @@ io.on("connection", (socket) => {
         }
     });
 });
+
+// ✅ Function to remove a user from waiting queue
+function removeUserFromQueue(peerId) {
+    const index = waitingUsers.findIndex(user => user.peerId === peerId);
+    if (index !== -1) {
+        console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
+        waitingUsers.splice(index, 1);
+    }
+}
+
+// ✅ Function to remove a user from waiting queue using socket ID
+function removeUserFromQueueBySocket(socketId) {
+    const index = waitingUsers.findIndex(user => user.socketId === socketId);
+    if (index !== -1) {
+        console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
+        waitingUsers.splice(index, 1);
+    }
+}
 
 // ✅ Function to update and log connected peers count
 function updatePeerCount() {
