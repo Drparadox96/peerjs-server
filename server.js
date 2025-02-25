@@ -52,13 +52,19 @@ io.on("connection", (socket) => {
 
         if (waitingUsers.length > 0) {
             // FIFO: Match the longest waiting user first
-            const matchedUser = waitingUsers.shift();
-            console.log(`🔗 Pairing ${peerId} with ${matchedUser.peerId}`);
+            let matchedUserIndex = waitingUsers.findIndex(user => user.peerId !== peerId);
+            
+            if (matchedUserIndex !== -1) {
+                const matchedUser = waitingUsers.splice(matchedUserIndex, 1)[0];
+                console.log(`🔗 Pairing ${peerId} with ${matchedUser.peerId}`);
 
-            io.to(socket.id).emit("match_found", matchedUser.peerId);
-            io.to(matchedUser.socketId).emit("match_found", peerId);
+                io.to(socket.id).emit("match_found", matchedUser.peerId);
+                io.to(matchedUser.socketId).emit("match_found", peerId);
+            } else {
+                waitingUsers.push({ peerId, socketId: socket.id, timestamp: Date.now() });
+                console.log(`🕒 ${peerId} added to waiting list`);
+            }
         } else {
-            // Add user to queue
             waitingUsers.push({ peerId, socketId: socket.id, timestamp: Date.now() });
             console.log(`🕒 ${peerId} added to waiting list`);
         }
@@ -72,19 +78,6 @@ io.on("connection", (socket) => {
         updateQueueCount(); // Log updated queue count
     });
 
-    // 🔥 Auto-matchmaking every 10 seconds
-    const matchInterval = setInterval(() => {
-        if (waitingUsers.length > 1) {
-            const user1 = waitingUsers.shift();
-            const user2 = waitingUsers.shift();
-            console.log(`🔄 Auto-matching ${user1.peerId} with ${user2.peerId}`);
-
-            io.to(user1.socketId).emit("match_found", user2.peerId);
-            io.to(user2.socketId).emit("match_found", user1.peerId);
-        }
-        updateQueueCount(); // Log updated queue count
-    }, 10000);
-
     socket.on("disconnect", () => {
         console.log(`❌ A user disconnected: ${socket.id}`);
         connectedPeers.delete(socket.id);
@@ -93,11 +86,6 @@ io.on("connection", (socket) => {
         // Remove user from waiting list
         removeUserFromQueueBySocket(socket.id);
         updateQueueCount(); // Log updated queue count
-
-        // Stop auto-matching if no users left
-        if (waitingUsers.length === 0) {
-            clearInterval(matchInterval);
-        }
     });
 });
 
