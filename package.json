@@ -1,5 +1,6 @@
 {
   "name": "peerjs-server",
+  "license": "MIT",
   "version": "1.0.0",
   "description": "PeerJS signaling server for Nkomode.com",
   "main": "server.js",
