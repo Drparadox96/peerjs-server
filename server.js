@@ -23,7 +23,8 @@ const peerServer = ExpressPeerServer(server, {
 
 app.use("/peerjs", peerServer);
 
-const waitingUsers = [];
+const waitingMen = [];
+const waitingWomen = [];
 const connectedPeers = new Set(); // Stores all connected peer IDs
 
 // ✅ PeerJS Connection Logging
@@ -44,37 +45,24 @@ io.on("connection", (socket) => {
     connectedPeers.add(socket.id);
     updatePeerCount(); // Logs and updates peer count
 
-    socket.on("find_match", (peerId) => {
-        console.log(`🟢 User ${peerId} is searching for a match...`);
+    socket.on("find_match", (peerId, gender) => {
+        console.log(`🟢 User ${peerId} (${gender}) is searching for a match...`);
 
-        // Remove user from queue first (if they were already waiting)
-        removeUserFromQueue(peerId);
-
-        if (waitingUsers.length > 0) {
-            // FIFO: Match the longest waiting user first
-            let matchedUserIndex = waitingUsers.findIndex(user => user.peerId !== peerId);
-            
-            if (matchedUserIndex !== -1) {
-                const matchedUser = waitingUsers.splice(matchedUserIndex, 1)[0];
-                console.log(`🔗 Pairing ${peerId} with ${matchedUser.peerId}`);
-
-                io.to(socket.id).emit("match_found", matchedUser.peerId);
-                io.to(matchedUser.socketId).emit("match_found", peerId);
-            } else {
-                waitingUsers.push({ peerId, socketId: socket.id, timestamp: Date.now() });
-                console.log(`🕒 ${peerId} added to waiting list`);
-            }
+        if (gender === "male" && waitingWomen.length > 0) {
+            const matchedUser = waitingWomen.shift();
+            matchUsers(peerId, socket.id, matchedUser.peerId, matchedUser.socketId);
+        } else if (gender === "female" && waitingMen.length > 0) {
+            const matchedUser = waitingMen.shift();
+            matchUsers(peerId, socket.id, matchedUser.peerId, matchedUser.socketId);
         } else {
-            waitingUsers.push({ peerId, socketId: socket.id, timestamp: Date.now() });
-            console.log(`🕒 ${peerId} added to waiting list`);
+            // Add user to the respective queue
+            if (gender === "male") {
+                waitingMen.push({ peerId, socketId: socket.id });
+            } else {
+                waitingWomen.push({ peerId, socketId: socket.id });
+            }
+            console.log(`🕒 ${peerId} added to ${gender === "male" ? "male" : "female"} waiting list`);
         }
-        updateQueueCount(); // Log updated queue count
-    });
-
-    // ✅ Handle "end_chat" event
-    socket.on("end_chat", (peerId) => {
-        console.log(`🚫 ${peerId} ended chat. Removing from waiting queue.`);
-        removeUserFromQueue(peerId);
         updateQueueCount(); // Log updated queue count
     });
 
@@ -83,42 +71,34 @@ io.on("connection", (socket) => {
         connectedPeers.delete(socket.id);
         updatePeerCount(); // Logs and updates peer count
 
-        // Remove user from waiting list
-        removeUserFromQueueBySocket(socket.id);
+        // Remove user from waiting lists
+        removeUserFromQueue(socket.id);
         updateQueueCount(); // Log updated queue count
     });
 });
 
-// ✅ Function to remove a user from waiting queue
-function removeUserFromQueue(peerId) {
-    const index = waitingUsers.findIndex(user => user.peerId === peerId);
-    if (index !== -1) {
-        console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
-        waitingUsers.splice(index, 1);
-    }
+function matchUsers(peerId1, socketId1, peerId2, socketId2) {
+    console.log(`🔗 Pairing ${peerId1} with ${peerId2}`);
+    io.to(socketId1).emit("match_found", peerId2);
+    io.to(socketId2).emit("match_found", peerId1);
 }
 
-// ✅ Function to remove a user from waiting queue using socket ID
-function removeUserFromQueueBySocket(socketId) {
-    const index = waitingUsers.findIndex(user => user.socketId === socketId);
-    if (index !== -1) {
-        console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
-        waitingUsers.splice(index, 1);
-    }
+function removeUserFromQueue(socketId) {
+    let index = waitingMen.findIndex(user => user.socketId === socketId);
+    if (index !== -1) waitingMen.splice(index, 1);
+
+    index = waitingWomen.findIndex(user => user.socketId === socketId);
+    if (index !== -1) waitingWomen.splice(index, 1);
 }
 
-// ✅ Function to update and log connected peers count
 function updatePeerCount() {
     const peerCount = connectedPeers.size;
     io.emit("peer_count", peerCount);
     console.log(`👥 Total Connected Peers: ${peerCount}`);
 }
 
-// ✅ Function to update and log queue count
 function updateQueueCount() {
-    const queueCount = waitingUsers.length;
-    io.emit("queue_count", queueCount);
-    console.log(`⌛ Users Waiting in Queue: ${queueCount}`);
+    console.log(`⌛ Users Waiting - Men: ${waitingMen.length}, Women: ${waitingWomen.length}`);
 }
 
 const PORT = process.env.PORT || 10000;
