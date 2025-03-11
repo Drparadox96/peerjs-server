@@ -6,7 +6,15 @@ const cors = require("cors");
 
 const app = express();
 
-// Global CORS middleware for Express routes
+// Global CORS middleware - sets headers on every request
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://nkomode.com");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  next();
+});
+
+// Also use the cors package with explicit configuration
 app.use(cors({
   origin: "https://nkomode.com",
   methods: ["GET", "POST"],
@@ -16,7 +24,7 @@ app.use(cors({
 
 const server = createServer(app);
 
-// Initialize Socket.IO with explicit CORS configuration
+// Initialize Socket.IO with explicit CORS settings
 const io = new Server(server, {
   cors: {
     origin: "https://nkomode.com",
