@@ -21,10 +21,7 @@ const peerServer = ExpressPeerServer(server, {
     debug: true
 });
 
-app.use("/peerjs", function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  next();
-}, peerServer);
+app.use("/peerjs", cors(), peerServer);
 
 const waitingUsers = [];
 const connectedPeers = new Set(); // Stores all connected peer IDs
