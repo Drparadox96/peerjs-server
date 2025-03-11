@@ -9,11 +9,14 @@ app.use(cors());
 
 const server = createServer(app);
 const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
+  cors: {
+    origin: "https://nkomode.com",  // explicitly allow your site’s domain
+    methods: ["GET", "POST"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
+  }
 });
+
 
 const peerServer = ExpressPeerServer(server, {
     path: "/",
