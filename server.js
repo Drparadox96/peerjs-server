@@ -1,47 +1,51 @@
 const express = require("express");
+const cors = require("cors");
 const { ExpressPeerServer } = require("peer");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
-const cors = require("cors");
 
 const app = express();
 
-// Use CORS globally for other routes
-app.use(cors());
-
-// Custom CORS middleware for /peerjs route
-app.use("/peerjs", (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*"); // You can replace "*" with "https://nkomode.com" to restrict access
-  res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
+// Global middleware to set CORS headers on every request
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*"); // allow all origins; or use "https://nkomode.com"
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
   next();
 });
 
+// Also use the cors package as needed
+app.use(cors());
+
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*", // or restrict to "https://nkomode.com"
     methods: ["GET", "POST"]
   }
 });
 
+// Create the PeerJS server instance.
+// Note: We set the path to "/" so that when we mount it at "/peerjs",
+// the effective endpoint will be "https://yourdomain/peerjs/..."
 const peerServer = ExpressPeerServer(server, {
   path: "/",
   allow_discovery: true,
   debug: true
 });
 
-// Mount the PeerJS server under /peerjs after our custom middleware
+// Mount the PeerJS server under the "/peerjs" route.
 app.use("/peerjs", peerServer);
 
+// Define your matchmaking queues and connected peer tracking.
 const waitingMen = [];
 const waitingWomen = [];
 const connectedPeers = new Set(); // Stores all connected peer IDs
 
-// ✅ PeerJS Connection Logging
+// Log PeerJS connections
 peerServer.on("connection", (client) => {
   console.log(`🟢 New Peer connected: ${client.getId()}`);
   connectedPeers.add(client.getId());
@@ -54,6 +58,7 @@ peerServer.on("disconnect", (client) => {
   updatePeerCount(); // Update total peer count
 });
 
+// Socket.io connection for matchmaking and messaging
 io.on("connection", (socket) => {
   console.log(`✅ A user connected: ${socket.id}`);
   connectedPeers.add(socket.id);
@@ -85,7 +90,7 @@ io.on("connection", (socket) => {
     connectedPeers.delete(socket.id);
     updatePeerCount(); // Logs and updates peer count
 
-    // Remove user from waiting lists
+    // Remove user from waiting lists if present
     removeUserFromQueue(socket.id);
     updateQueueCount(); // Log updated queue count
   });
