@@ -6,26 +6,16 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-// Global CORS middleware for all routes (restrict to https://nkomode.com)
+// Global CORS configuration (allow only https://nkomode.com)
 app.use(cors({
   origin: "https://nkomode.com",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Content-Length", "X-Requested-With"]
+  allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization", "Content-Length"],
+  credentials: true
 }));
 
-// Apply CORS headers to every request under /peerjs/*
-app.all("/peerjs/*", (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://nkomode.com");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
+// Create HTTP server and Socket.io instance
 const server = createServer(app);
-
 const io = new Server(server, {
   cors: {
     origin: "https://nkomode.com",
@@ -33,9 +23,10 @@ const io = new Server(server, {
   }
 });
 
-// Create PeerJS server with internal path "/" and mount it at /peerjs
+// Create PeerJS server with internal path "/" and mount it under /peerjs.
+// This means PeerJS endpoints will be at https://peerjs-server-vbtq.onrender.com/peerjs/...
 const peerServer = ExpressPeerServer(server, {
-  path: "/",
+  path: "/", // Use "/" here since client-side Peer configuration uses path: '/'
   allow_discovery: true,
   debug: true
 });
@@ -89,6 +80,7 @@ io.on("connection", (socket) => {
     console.log(`❌ A user disconnected: ${socket.id}`);
     connectedPeers.delete(socket.id);
     updatePeerCount();
+
     removeUserFromQueue(socket.id);
     updateQueueCount();
   });
