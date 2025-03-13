@@ -6,26 +6,26 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-// Global CORS middleware (only allow https://nkomode.com)
+// Global CORS middleware for all routes (restrict to https://nkomode.com)
 app.use(cors({
   origin: "https://nkomode.com",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "Content-Length", "X-Requested-With"]
 }));
 
-// Custom CORS middleware for the /peerjs route
-app.use("/peerjs", (req, res, next) => {
+// Apply CORS headers to every request under /peerjs/*
+app.all("/peerjs/*", (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "https://nkomode.com");
-  res.header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
   next();
 });
 
-// Create HTTP server and Socket.io instance
 const server = createServer(app);
+
 const io = new Server(server, {
   cors: {
     origin: "https://nkomode.com",
@@ -33,7 +33,7 @@ const io = new Server(server, {
   }
 });
 
-// Create the PeerJS server with internal path "/" and mount it under "/peerjs"
+// Create PeerJS server with internal path "/" and mount it at /peerjs
 const peerServer = ExpressPeerServer(server, {
   path: "/",
   allow_discovery: true,
@@ -44,9 +44,9 @@ app.use("/peerjs", peerServer);
 // --- Socket.io / Matchmaking Logic ---
 const waitingMen = [];
 const waitingWomen = [];
-const connectedPeers = new Set();
+const connectedPeers = new Set(); // Stores all connected peer IDs
 
-// PeerJS Connection Logging
+// Log PeerJS connections
 peerServer.on("connection", (client) => {
   console.log(`🟢 New Peer connected: ${client.getId()}`);
   connectedPeers.add(client.getId());
@@ -74,6 +74,7 @@ io.on("connection", (socket) => {
       const matchedUser = waitingMen.shift();
       matchUsers(peerId, socket.id, matchedUser.peerId, matchedUser.socketId);
     } else {
+      // Add user to the respective queue
       if (gender === "male") {
         waitingMen.push({ peerId, socketId: socket.id });
       } else {
@@ -88,7 +89,6 @@ io.on("connection", (socket) => {
     console.log(`❌ A user disconnected: ${socket.id}`);
     connectedPeers.delete(socket.id);
     updatePeerCount();
-
     removeUserFromQueue(socket.id);
     updateQueueCount();
   });
