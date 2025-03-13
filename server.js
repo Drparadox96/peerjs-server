@@ -6,41 +6,34 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-// Global middleware to set CORS headers on every request
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*"); // allow all origins; or use "https://nkomode.com"
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
+// Global CORS middleware (applies to all routes)
+app.use(cors({
+  origin: "*", // You can restrict this to "https://nkomode.com" if desired
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Content-Length", "X-Requested-With"]
+}));
 
-// Also use the cors package as needed
-app.use(cors());
-
+// Create HTTP server and Socket.io instance
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // or restrict to "https://nkomode.com"
+    origin: "*", // Or restrict to your client domain
     methods: ["GET", "POST"]
   }
 });
 
-// Create the PeerJS server instance.
-// Note: We set the path to "/" so that when we mount it at "/peerjs",
-// the effective endpoint will be "https://yourdomain/peerjs/..."
+// Create the PeerJS server with internal path "/peerjs"
+// This means that all PeerJS endpoints will be served at /peerjs/* 
 const peerServer = ExpressPeerServer(server, {
-  path: "/",
+  path: "/peerjs",
   allow_discovery: true,
   debug: true
 });
 
-// Mount the PeerJS server under the "/peerjs" route.
-app.use("/peerjs", peerServer);
+// Mount the PeerJS server at the root (it will handle requests at /peerjs/*)
+app.use(peerServer);
 
-// Define your matchmaking queues and connected peer tracking.
+// --- Socket.io / Matchmaking Logic ---
 const waitingMen = [];
 const waitingWomen = [];
 const connectedPeers = new Set(); // Stores all connected peer IDs
@@ -49,24 +42,22 @@ const connectedPeers = new Set(); // Stores all connected peer IDs
 peerServer.on("connection", (client) => {
   console.log(`🟢 New Peer connected: ${client.getId()}`);
   connectedPeers.add(client.getId());
-  updatePeerCount(); // Update total peer count
+  updatePeerCount();
 });
 
 peerServer.on("disconnect", (client) => {
   console.log(`🔴 Peer disconnected: ${client.getId()}`);
   connectedPeers.delete(client.getId());
-  updatePeerCount(); // Update total peer count
+  updatePeerCount();
 });
 
-// Socket.io connection for matchmaking and messaging
 io.on("connection", (socket) => {
   console.log(`✅ A user connected: ${socket.id}`);
   connectedPeers.add(socket.id);
-  updatePeerCount(); // Logs and updates peer count
+  updatePeerCount();
 
   socket.on("find_match", (peerId, gender) => {
     console.log(`🟢 User ${peerId} (${gender}) is searching for a match...`);
-
     if (gender === "male" && waitingWomen.length > 0) {
       const matchedUser = waitingWomen.shift();
       matchUsers(peerId, socket.id, matchedUser.peerId, matchedUser.socketId);
@@ -82,17 +73,15 @@ io.on("connection", (socket) => {
       }
       console.log(`🕒 ${peerId} added to ${gender === "male" ? "male" : "female"} waiting list`);
     }
-    updateQueueCount(); // Log updated queue count
+    updateQueueCount();
   });
 
   socket.on("disconnect", () => {
     console.log(`❌ A user disconnected: ${socket.id}`);
     connectedPeers.delete(socket.id);
-    updatePeerCount(); // Logs and updates peer count
-
-    // Remove user from waiting lists if present
+    updatePeerCount();
     removeUserFromQueue(socket.id);
-    updateQueueCount(); // Log updated queue count
+    updateQueueCount();
   });
 });
 
@@ -122,5 +111,5 @@ function updateQueueCount() {
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log(`✅ PeerJS Server is running at https://peerjs-server-vbtq.onrender.com/peerjs`);
+  console.log(`✅ PeerJS Server is running at https://peerjs-server-vbtq.onrender.com`);
 });
