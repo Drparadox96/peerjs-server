@@ -13,6 +13,9 @@
     "cors": "^2.8.5",
     "socket.io": "^4.7.2"
   },
+  "overrides": {
+    "uuid": "^7.0.0"
+  },
   "engines": {
     "node": "18.x"
   }
