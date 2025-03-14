@@ -4,7 +4,7 @@
   "description": "PeerJS signaling server for Render",
   "main": "server.js",
   "dependencies": {
-    "peer": "^1.4.7"
+    "peerjs": "^1.4.7"
   },
   "scripts": {
     "start": "node server.js"
