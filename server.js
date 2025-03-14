@@ -1,4 +1,4 @@
-const { PeerServer } = require('peer');
+const { PeerServer } = require('peerjs');
 
 const PORT = process.env.PORT || 10000;
 
