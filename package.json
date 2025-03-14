@@ -4,7 +4,10 @@
   "description": "PeerJS signaling server for Render",
   "main": "server.js",
   "dependencies": {
-    "peerjs": "^1.4.7"
+    "express": "^4.21.2",
+    "peer": "^0.6.1",
+    "socket.io": "^4.5.4",
+    "cors": "^2.8.5"
   },
   "scripts": {
     "start": "node server.js"
