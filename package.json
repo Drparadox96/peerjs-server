@@ -1,22 +1,13 @@
 {
   "name": "peerjs-server",
-  "license": "MIT",
   "version": "1.0.0",
-  "description": "PeerJS signaling server for Nkomode.com",
+  "description": "PeerJS signaling server for Render",
   "main": "server.js",
+  "dependencies": {
+    "peer": "^1.4.7"
+  },
   "scripts": {
     "start": "node server.js"
   },
-  "dependencies": {
-    "express": "^4.17.1",
-    "peer": "^0.6.1",
-    "cors": "^2.8.5",
-    "socket.io": "^4.7.2"
-  },
-  "overrides": {
-    "uuid": "^7.0.0"
-  },
-  "engines": {
-    "node": "18.x"
-  }
+  "license": "MIT"
 }
