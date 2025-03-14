@@ -21,10 +21,9 @@ const peerServer = ExpressPeerServer(server, {
     debug: true
 });
 
-app.use("/", peerServer);
+app.use("/peerjs", peerServer);
 
-const waitingMen = [];
-const waitingWomen = [];
+const waitingUsers = [];
 const connectedPeers = new Set(); // Stores all connected peer IDs
 
 // ✅ PeerJS Connection Logging
@@ -45,60 +44,69 @@ io.on("connection", (socket) => {
     connectedPeers.add(socket.id);
     updatePeerCount(); // Logs and updates peer count
 
-    socket.on("find_match", (peerId, gender) => {
-        console.log(`🟢 User ${peerId} (${gender}) is searching for a match...`);
+    socket.on("find_match", (peerId) => {
+        console.log(`🟢 User ${peerId} is searching for a match...`);
 
-        if (gender === "male" && waitingWomen.length > 0) {
-            const matchedUser = waitingWomen.shift();
-            matchUsers(peerId, socket.id, matchedUser.peerId, matchedUser.socketId);
-        } else if (gender === "female" && waitingMen.length > 0) {
-            const matchedUser = waitingMen.shift();
-            matchUsers(peerId, socket.id, matchedUser.peerId, matchedUser.socketId);
+        if (waitingUsers.length > 0) {
+            // FIFO: Match the longest waiting user first
+            const matchedUser = waitingUsers.shift();
+            console.log(`🔗 Pairing ${peerId} with ${matchedUser.peerId}`);
+
+            io.to(socket.id).emit("match_found", matchedUser.peerId);
+            io.to(matchedUser.socketId).emit("match_found", peerId);
         } else {
-            // Add user to the respective queue
-            if (gender === "male") {
-                waitingMen.push({ peerId, socketId: socket.id });
-            } else {
-                waitingWomen.push({ peerId, socketId: socket.id });
-            }
-            console.log(`🕒 ${peerId} added to ${gender === "male" ? "male" : "female"} waiting list`);
+            // Add user to queue
+            waitingUsers.push({ peerId, socketId: socket.id, timestamp: Date.now() });
+            console.log(`🕒 ${peerId} added to waiting list`);
         }
         updateQueueCount(); // Log updated queue count
     });
+
+    // 🔥 Auto-matchmaking every 10 seconds
+    const matchInterval = setInterval(() => {
+        if (waitingUsers.length > 1) {
+            const user1 = waitingUsers.shift();
+            const user2 = waitingUsers.shift();
+            console.log(`🔄 Auto-matching ${user1.peerId} with ${user2.peerId}`);
+
+            io.to(user1.socketId).emit("match_found", user2.peerId);
+            io.to(user2.socketId).emit("match_found", user1.peerId);
+        }
+        updateQueueCount(); // Log updated queue count
+    }, 10000);
 
     socket.on("disconnect", () => {
         console.log(`❌ A user disconnected: ${socket.id}`);
         connectedPeers.delete(socket.id);
         updatePeerCount(); // Logs and updates peer count
 
-        // Remove user from waiting lists
-        removeUserFromQueue(socket.id);
+        // Remove user from waiting list
+        const index = waitingUsers.findIndex(user => user.socketId === socket.id);
+        if (index !== -1) {
+            console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
+            waitingUsers.splice(index, 1);
+        }
         updateQueueCount(); // Log updated queue count
+
+        // Stop auto-matching if no users left
+        if (waitingUsers.length === 0) {
+            clearInterval(matchInterval);
+        }
     });
 });
 
-function matchUsers(peerId1, socketId1, peerId2, socketId2) {
-    console.log(`🔗 Pairing ${peerId1} with ${peerId2}`);
-    io.to(socketId1).emit("match_found", peerId2);
-    io.to(socketId2).emit("match_found", peerId1);
-}
-
-function removeUserFromQueue(socketId) {
-    let index = waitingMen.findIndex(user => user.socketId === socketId);
-    if (index !== -1) waitingMen.splice(index, 1);
-
-    index = waitingWomen.findIndex(user => user.socketId === socketId);
-    if (index !== -1) waitingWomen.splice(index, 1);
-}
-
+// ✅ Function to update and log connected peers count
 function updatePeerCount() {
     const peerCount = connectedPeers.size;
     io.emit("peer_count", peerCount);
     console.log(`👥 Total Connected Peers: ${peerCount}`);
 }
 
+// ✅ Function to update and log queue count
 function updateQueueCount() {
-    console.log(`⌛ Users Waiting - Men: ${waitingMen.length}, Women: ${waitingWomen.length}`);
+    const queueCount = waitingUsers.length;
+    io.emit("queue_count", queueCount);
+    console.log(`⌛ Users Waiting in Queue: ${queueCount}`);
 }
 
 const PORT = process.env.PORT || 10000;
