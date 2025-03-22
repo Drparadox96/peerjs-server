@@ -77,4 +77,33 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log
+    console.log(`❌ A user disconnected: ${socket.id}`);
+    connectedPeers.delete(socket.id);
+    updatePeerCount();
+
+    // Remove user from waiting list if present
+    const index = waitingUsers.findIndex(user => user.socketId === socket.id);
+    if (index !== -1) {
+      console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
+      waitingUsers.splice(index, 1);
+      updateQueueCount();
+    }
+  });
+});
+
+function updatePeerCount() {
+  const count = connectedPeers.size;
+  io.emit("peer_count", count);
+  console.log(`👥 Total Connected Peers: ${count}`);
+}
+
+function updateQueueCount() {
+  const count = waitingUsers.length;
+  io.emit("queue_count", count);
+  console.log(`⌛ Users Waiting in Queue: ${count}`);
+}
+
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+  console.log(`✅ PeerJS Server is running on port ${PORT}`);
+});
