@@ -5,6 +5,8 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 
 const app = express();
+
+// Global CORS configuration for all routes
 app.use(cors());
 
 const server = createServer(app);
@@ -12,12 +14,18 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
+const corsOptions = {
+  origin: "*", // or restrict to 'https://nkomode.com' if preferred
+  methods: ["GET", "POST"]
+};
+
+// Wrap the PeerJS route with CORS middleware
 const peerServer = ExpressPeerServer(server, {
   path: "/",
   allow_discovery: true,
   debug: true
 });
-app.use("/peerjs", peerServer);
+app.use("/peerjs", cors(corsOptions), peerServer);
 
 const waitingUsers = [];
 const connectedPeers = new Set();
@@ -69,33 +77,4 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log(`❌ A user disconnected: ${socket.id}`);
-    connectedPeers.delete(socket.id);
-    updatePeerCount();
-
-    // Remove user from waiting list if present
-    const index = waitingUsers.findIndex(user => user.socketId === socket.id);
-    if (index !== -1) {
-      console.log(`🗑️ Removing ${waitingUsers[index].peerId} from waiting list`);
-      waitingUsers.splice(index, 1);
-      updateQueueCount();
-    }
-  });
-});
-
-function updatePeerCount() {
-  const count = connectedPeers.size;
-  io.emit("peer_count", count);
-  console.log(`👥 Total Connected Peers: ${count}`);
-}
-
-function updateQueueCount() {
-  const count = waitingUsers.length;
-  io.emit("queue_count", count);
-  console.log(`⌛ Users Waiting in Queue: ${count}`);
-}
-
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-  console.log(`✅ PeerJS Server is running on port ${PORT}`);
-});
+    console.log
